@@ -193,6 +193,7 @@ int outputheader(char *add_columns) {
     if (strcasestr(add_columns, "exe"))     fprintf(stdout, pad ? " %-20s" : ",%s", "EXE");
     if (strcasestr(add_columns, "cmdline")) fprintf(stdout, pad ? " %-30s" : ",%s", "CMDLINE");
     if (strcasestr(add_columns, "kstack"))  fprintf(stdout, pad ? " %s"    : ",%s", "KSTACK");
+    if (strcasestr(add_columns, "dcid"))  fprintf(stdout, pad ? " %s"    : ",%s", "DCID");
     fprintf(stdout, "\n");
     return 1;
 }
@@ -208,6 +209,7 @@ void outputprocpartial(int pid, int tid, char *sampletime, uid_t proc_uid, char 
     if (strcasestr(add_columns, "exe"))     fprintf(stdout, pad ? " %-20s" : ",%s", "-");
     if (strcasestr(add_columns, "cmdline")) fprintf(stdout, pad ? " %-30s" : ",%s", "-");
     if (strcasestr(add_columns, "kstack"))  fprintf(stdout, pad ? " %s"    : ",%s", "-");
+    if (strcasestr(add_columns, "dcid"))    fprintf(stdout, pad ? " %s"    : ",%s", "-");
     fprintf(stdout, "\n");
 }
 
@@ -258,6 +260,28 @@ int outputprocentry(int pid, int tid, char *sampletime, uid_t proc_uid, char *ad
                 if (b > 0) { outputfields(filebuf, "t", WSP); } else { fprintf(stdout, "-"); }
             }
 
+            if (strcasestr(add_columns, "dcid")) {
+                b = readfile(pid, tid, "cgroup", filebuf);
+                char container_id[512] = "";
+                if (b > 0) {
+                    char line[512] = "";
+                    // only need first line, we are just looking for a docker container id
+                    strncat(line, filebuf, 102);
+		                //
+		                // NOT FINISHED
+		                //
+                    if(strstr(line, "/docker/") != NULL){
+			                  //
+			                  // NEED to parse the line, is of format <id>:<group_name>:/docker/<docker_container_id>
+                        // - just guess at the mo
+			                  //
+                        strncpy(container_id, line + 32, 64);
+                    }
+                }
+                fprintf(stdout, pad ? "%-30s%c" : "%s%c", container_id, outsep);
+
+            }
+
             fprintf(stdout, "\n");
         }
     }
@@ -278,13 +302,18 @@ void printhelp() {
     "  Options:\n"
     "    -a             capture tasks in additional states, even the ones Sleeping (S)\n"
     "    -A             capture tasks in All states, including Zombie (Z), Exiting (X), Idle (I)\n"
-    "    -c <c1,c2>     print additional columns (for example: -c exe,cmdline,kstack)\n"
+    "    -c <c1,c2>     print additional columns (for example: -c exe,cmdline,kstack,dcid)\n"
     "    -d <N>         seconds to sleep between samples (default: 1)\n"
     "    -E <string>    custom task state Exclusion filter (default: XZIS)\n"
     "    -h             display this help message\n"
     "    -o <dirname>   write wide output into hourly CSV files in this directory instead of stdout\n";
 
     fprintf(stderr, "%s\n", helptext);
+}
+
+float timedifference_msec(struct timeval t0, struct timeval t1)
+{
+    return (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.0f;
 }
 
 int main(int argc, char **argv)
@@ -296,7 +325,9 @@ int main(int argc, char **argv)
     struct dirent *pde, *tde; // process level and thread/task level directory entries in /proc
 
     char timebuf[80], usec_buf[6];
-    struct timeval tmnow;
+    struct timeval tmnow,loop_iteration_start_time,loop_iteration_end_time;
+    float loop_iteration_msec;
+    float sleep_for_msec;
     struct tm *tm;
     int prevhour = -1; // used for detecting switch to a new hour for creating a new output file
     int sleep_delay = 1;
@@ -363,6 +394,7 @@ int main(int argc, char **argv)
     while (1) {
 
         gettimeofday(&tmnow, NULL);
+	      gettimeofday(&loop_iteration_start_time, NULL);
         tm = localtime(&tmnow.tv_sec);
 
         if (output_dir) {
@@ -430,7 +462,14 @@ int main(int argc, char **argv)
         if (!output_dir && header_printed) fprintf(stdout, "\n");
 
         fflush(stdout);
-        sleep(sleep_delay);
+      
+	      // How long did the iteration take
+	      gettimeofday(&loop_iteration_end_time, NULL);
+        loop_iteration_msec = timedifference_msec(loop_iteration_start_time, loop_iteration_end_time);
+        // Sleep time to get our interval to expected wait
+        sleep_for_msec = sleep_delay*1000 - loop_iteration_msec;
+	      // Sleep now.
+	      usleep(sleep_for_msec*1000);
     }
 
     return 0;
