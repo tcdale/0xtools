@@ -267,14 +267,14 @@ int outputprocentry(int pid, int tid, char *sampletime, uid_t proc_uid, char *ad
                     char line[512] = "";
                     // only need first line, we are just looking for a docker container id
                     strncat(line, filebuf, 102);
-		                //
-		                // NOT FINISHED
-		                //
+		       //
+		       // NOT FINISHED
+		       //
                     if(strstr(line, "/docker/") != NULL){
-			                  //
-			                  // NEED to parse the line, is of format <id>:<group_name>:/docker/<docker_container_id>
+			//
+			// NEED to parse the line, is of format <id>:<group_name>:/docker/<docker_container_id>
                         // - just guess at the mo
-			                  //
+			//
                         strncpy(container_id, line + 32, 64);
                     }
                 }
@@ -394,7 +394,7 @@ int main(int argc, char **argv)
     while (1) {
 
         gettimeofday(&tmnow, NULL);
-	      gettimeofday(&loop_iteration_start_time, NULL);
+	gettimeofday(&loop_iteration_start_time, NULL);
         tm = localtime(&tmnow.tv_sec);
 
         if (output_dir) {
@@ -463,13 +463,13 @@ int main(int argc, char **argv)
 
         fflush(stdout);
       
-	      // How long did the iteration take
-	      gettimeofday(&loop_iteration_end_time, NULL);
+	// How long did the iteration take
+	gettimeofday(&loop_iteration_end_time, NULL);
         loop_iteration_msec = timedifference_msec(loop_iteration_start_time, loop_iteration_end_time);
         // Sleep time to get our interval to expected wait
         sleep_for_msec = sleep_delay*1000 - loop_iteration_msec;
-	      // Sleep now.
-	      usleep(sleep_for_msec*1000);
+	// Sleep now.
+	usleep(sleep_for_msec*1000);
     }
 
     return 0;
